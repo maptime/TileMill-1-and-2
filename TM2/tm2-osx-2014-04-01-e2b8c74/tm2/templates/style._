@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset='UTF-8'/>
+  <link href='/app/icon.png' rel='apple-touch-icon' />
+  <link href='/ext/codemirror/codemirror.css' rel='stylesheet' />
+  <link href='/ext/mapbox.css' rel='stylesheet' />
+  <link href='/ext/base/base.css' rel='stylesheet' />
+  <link href='/app/app.css' rel='stylesheet' />
+  <link href='/app/style.css' rel='stylesheet' />
+  <script src='/ext/underscore-min.js'></script>
+  <script src='/ext/codemirror/codemirror.js'></script>
+  <script src='/ext/codemirror/runmode.js'></script>
+  <script src='/ext/codemirror/searchcursor.js'></script>
+  <script src='/ext/jquery-2.0.3.min.js'></script>
+  <script src='/ext/jquery.sortable.js'></script>
+  <script src='/ext/backbone.js'></script>
+  <script src='/ext/mapbox.js'></script>
+  <script src='/app/lib.js'></script>
+  <script src='/app/codemirror.carto.js'></script>
+  <script src='/app/codemirror.carto.complete.js'></script>
+  <script src='/app/codemirror.tm2.search.js'></script>
+  <script src='/app/codemirror.tm2.palette.js'></script>
+  <script src='/ext/sexagesimal.js'></script>
+  <title><%= style.name %></title>
+</head>
+
+<body id='view' class='<%= agent %>'>
+
+<div id='perf'></div>
+
+<form id='settings' class='z10 col12 pin-top'>
+  <div class='z1 col6 pin-right fill-blue dark scroll-styled'>
+    <%= this.history(obj) %>
+  </div>
+  <a href='#' class='fill-darken1 col12 pin-left pin-bottom'></a>
+  <div class='project-settings fill-light round contain col4 pin-topleft'>
+  <a class="pad1 quiet icon x submit pin-topright" href="#"></a>
+    <header class='pad2 keyline-bottom'>
+      <h3>Settings</h3>
+    </header>
+    <div class='pad2'>
+      <fieldset>
+        <section class='space-bottom1'>
+          <label>Name</label>
+          <input class='short small stretch' name='name' type='text' value='<%= _(style.name).escape() %>'/>
+        </section>
+        <section class='space-bottom1'>
+          <label>Description</label>
+          <textarea class='short small stretch' name='description' type='text' cols='60' rows='8'><%= style.description %></textarea>
+        </section>
+        <section class='space-bottom1'>
+          <label>Attribution</label>
+          <input class='short small stretch' name='attribution' type='text' value='<%= _(style.attribution).escape() %>'></input>
+        </section>
+      </fieldset>
+      <fieldset class='pad1 space-bottom2 keyline-all round'>
+        <section class='space-bottom1 clearfix'>
+          <label class='inline col4'>Image format</label>
+          <select name='format'>
+            <% _({
+              'png24': 'png (24-bit)',
+              'png8:m=h': 'png (256 colors)',
+              'png8:m=h:c=192': 'png (192 colors)',
+              'png8:m=h:c=128': 'png (128 colors)',
+              'png8:m=h:c=64': 'png (64 colors)',
+              'png8:m=h:c=32': 'png (32 colors)',
+              'jpeg95': 'jpeg (95%)',
+              'jpeg90': 'jpeg (90%)',
+              'jpeg85': 'jpeg (85%)',
+              'jpeg80': 'jpeg (80%)'
+            }).each(function(label, format) { %>
+            <option value='<%= format %>' <% if (style.format === format) { %> selected='selected' <% } %>><%= label %></option>
+            <% }); %>
+          </select>
+        </section>
+        <section class='space-bottom0 clearfix'>
+          <label class='inline col4'>Minzoom</label>
+          <input id='minzoom' name='minzoom' class='min' type='range' value='<%= style.minzoom %>' min='0' max='22' step='1' onchange='rangeHandler(this, "max", "#maxzoom");' />
+          <span class='small quiet code inline range' id='minzoom-val'><%= style.minzoom %></span>
+        </section>
+        <section class='space-bottom0 clearfix'>
+          <label class='inline col4'>Maxzoom</label>
+          <input id='maxzoom' name='maxzoom' class='max' type='range' value='<%= style.maxzoom %>' min='0' max='22' step='1' onchange='rangeHandler(this, "min", "#minzoom");' />
+          <span class='small quiet code inline range' id='maxzoom-val'><%= style.maxzoom %></span>
+        </section>
+        <section class='space-bottom1 clearfix'>
+          <label class='inline col4'>Scale</label>
+          <input id='scale' name='scale' type='range' value='<%= style.scale %>' min='1' max='4' step='1' onchange='rangeHandler(this, "scale", "#scale");' />
+          <span class='small quiet code inline range' id='scale-val'><%= style.scale %></span>
+        </section>
+        <section class='clearfix'>
+          <label class='inline col4 pad0y' for='baselayer_id'>Baselayer ID</label>
+          <input id='baselayer_id' class='short small col8' name='baselayer' type='text' value='<%= _(style._prefs.baselayer).escape() %>' placeholder='Mapbox map id'></input>
+        </section>
+      </fieldset>
+
+      <section class='pill col12 clearfix'><!--
+        --><a href='<% if (style._tmp) { %>#saveas<% } else { %>#<% } %>' class='button quiet col6 icon js-save floppy'>Save</a><!--
+        --><a href='/style.tm2z?id=<%=style.id%>' class='button quiet col6 submit icon package'>Package</a>
+      </section>
+    </div>
+  </div>
+</form>
+
+<form id='bookmark' class='z1 contain fill-white round animate'>
+  <input id='addbookmark' type='text' class='col12 clean round small' value='' placeholder='Name a bookmark' autocomplete='off' />
+  <div class='pin-topright pad0'>
+    <input type='submit' class='short quiet button' value='Add' />
+  </div>
+  <ul id='bookmark-list' class='clip fill-light scroll-styled round-bottom'></ul>
+</form>
+
+<form id='search' class='z1 contain fill-white round animate'>
+  <input id='dosearch' type='text' class='col12 clean small round' value='' placeholder='Search' autocomplete='off' />
+  <div class='pin-topleft pad1'>
+    <span class='icon search'></span>
+  </div>
+  <ul id='search-results' class='clip fill-light scroll-styled round-bottom'></ul>
+</form>
+
+<div id='full' class='clip animate pin-left'>
+  <div id='title' class='contain inline pin-topleft z1'>
+    <span class='inline clip fill-darken2 row1'><!--
+      --><a href='#user' class='inline avatar align-middle'><img src='<%= user.avatar %>' /></a><!--
+      --><a href='#settings' class='unround icon sprocket project-name js-name button inline quiet'><%= style.name || 'Untitled' %></a><!--
+      <% if (style._tmp) { %>
+        --><a class='js-save settings-n button icon inline floppy unround' href='#saveas'>Save as</a>
+      <% } else { %>
+        --><a class='js-save settings-n button icon inline floppy unround' href='#'>Save</a>
+      <% } %>
+  </div>
+  <div id='map' class='animate' style='background-color:<%=style.background%>;'></div>
+  <div id='map-overlay' class='overlay'></div>
+  <div id='map-errors'></div>
+  <div id='zoomedto' class='z<%=style.center[2]%>'></div>
+  <div id='map-controls'>
+    <div class='inline'>
+      <div class='z1 fill-white'>
+        <a href='#' id='zoom-in' title='Zoom in' class='icon plus keyline-right quiet'></a><!--
+        --><a href='#' id='zoom-out' title='Zoom out' class='icon minus keyline-right quiet'></a>
+      </div>
+    </div>
+    <div class='inline'>
+      <div class='z1 fill-white'>
+        <a href='#search' title='Search' class='search-n keyline-right icon search quiet '></a><!--
+        --><a href='#' title='Close search' class='search-y icon keyline-right search fill-dark dark'></a><!--
+        --><a href='#bookmark' title='Bookmarks' class='bookmark-n icon marker quiet'></a><!--
+        --><a href='#' title='Close bookmarks' class='bookmark-y icon marker fill-dark dark'></a>
+      </div>
+    </div>
+    <a href='#' title='Baselayer visibility' id='baselayer' class='inline icon mt active dark fill-dark' <% if (!style._prefs.baselayer) { %>style='display:none;'<% }%>></a>
+    <a href='#full' title='Toggle fullscreen' class='full-n inline fill-white icon fullscreen quiet'></a>
+    <a href='#' title='Exit fillscreen' class='full-y fill-dark dark icon fullscreen'></a>
+  </div>
+</div>
+
+<div id='style-ui' class='animate z1 col6 pin-right fill-light'>
+
+  <div id='data' class='pane pin-left animate fill-blue dark scroll-styled col12'>
+    <div class='col6'>
+      <section class='pad1 keyline-bottom contain'>
+        <h3>Sources</h3>
+        <a class="pad1 quiet icon x submit pin-topright" href="#layers"></a>
+      </section>
+      <div class='grid pad1 clearfix'>
+      <%
+        print(_(history.source).chain()
+          .sortBy(function(item) {
+            return (item.name||'').toLowerCase();
+          })
+          .map(function(item) {
+            return this.sourceitem(_({active:item.id === style.source}).defaults(item));
+          }.bind(this))
+          .value().join(''));
+      %>
+      </div>
+    </div>
+  </div>
+
+  <div id='docs' class='pane animate pin-left fill-grey scroll-styled col6'>
+    <%= this['styledocs'](cartoRef) %>
+  </div>
+
+  <div id='fonts' class='pane animate pin-left col6 scroll-styled fill-grey'>
+    <header class='pad1x pad0y keyline-bottom'>
+      <h3 class='pad0y'>Fonts</h3>
+      <nav class='pin-topright'>
+        <a class='inline pad1 strong small icon quiet x' href='#docs'></a>
+      </nav>
+    </header>
+    <% fontsRef.forEach(function(font) { %>
+    <div class='keyline-bottom'><span class='pad0 single-font' style='background-image:url("/font.png?id=<%=font%>")'><%=font%></span></div>
+    <% }); %>
+  </div>
+
+  <div id='layers' class='pane animate pin-left col6 menu dark fill-dark'>
+    <nav class='row1 col12 pad1 fill-dark keyline-bottom z100'>
+      <h3>Active source</h3>
+    </nav>
+    <div class='js-menu-content col12 scroll-styled'>
+      <%= _(sources).map(this.sourcelayers).join('\n') %>
+    </div>
+  </div>
+
+  <div id='code'>
+  <div class='row1 fill-light pin-top'>
+    <div class='pin-topleft fill-gray z1 keyline-bottom row1'><!--
+    --><a class='pad1 inline quiet docs-n icon help unround align-middle fill-darken0 keyline-right' href='#docs'></a><!--
+      --><a class='pad1 inline dark docs-y icon help unround align-middle fill-darken2 keyline-right' href='#'></a><!--
+      --><a class='pad1 inline quiet layers-n icon point-line align-middle fill-darken0 keyline-right' href='#layers'></a><!--
+      --><a class='pad1 inline dark layers-y icon point-line unround align-middle fill-darken2 keyline-right' href='#'></a>
+    </div>
+    <nav id='tabs' class='keyline-left row1 keyline-bottom pad0y pin-top fill-darken0 contain small'><!--
+      --><a rel='template' href='#code-template' class='tab js-tab round quiet mini icon tooltip'></a><!--
+      <% _(style.styles).keys().forEach(function(k,i) { %>
+      --><a rel='<%=k%>' href='#code-<%=k.replace(/[^\w+]/g,'_')%>' class='strong quiet tab js-tab round pad0y pad1x truncate contain <%=!i?'active':''%>'><%=k.replace(/.mss/,'')%> <span class='icon trash keyline-left js-deltab pin-right pad0y round-right'></span></a><!--
+      <% }); %>
+    -->
+      <span class='z1'>
+        <a class='inline round pad0 short quiet icon plus' href='#addtab'></a>
+      </span>
+    </nav>
+  </div>
+
+  <form id='interactivity' class='hidden top1 contain'>
+    <div class='fill-white row1 pad1 keyline-bottom pin-top'>
+      <a href='#interaction-info' class='pin-right pad1 js-info inline icon info quiet'></a>
+      <div id='interaction-info' class='clearfix pin-top top1 z10 pad1 keyline-bottom small fill-white hidden'>
+        <p>Select a layer from the dropdown, and then place an attribute in brackets like <code>{{{attribute}}}</code>. You can combine tags with plain text. For example, <code>{{{featuretype}}} is {{{depth}}} meters deep</code> would result in a popup that read: "lake is 300 meters deep" when hovering over a feature with <span class='quiet'>featuretype:lake</span> and <span class='quiet'>depth:300.</span></p>
+      </div>
+
+      <label class='small strong'>Interaction layer</label>
+      <select name='interactivity_layer' class='js-layer-options'>
+        <option value=''>Choose:</option>
+        <% _(sources).each(function(source) { %>
+          <% _(source.vector_layers||{}).each(function(l) { %>
+            <option value='<%=l.id%>' <% if (style.interactivity_layer === l.id) { %>selected='selected'<% } %>><%=l.id%></option>
+          <% }); %>
+        <% }); %>
+      </select>
+    </div>
+    <div class='fill-grey space pad1 keyline-top fixed-bottomright col6 row4 z10 small'>
+      <div class='space-bottom1'>
+        <label class='small'>Available properties:</label>
+      </div>
+
+      <div class='pad1 round fill-light content scroll-styled space-bottom1'>
+        <% _(sources).each(function(source) { %>
+          <% _(source.vector_layers||{}).each(function(l) { %>
+          <pre rel='<%= l.id %>' class='small space js-layer-option <% if (style.interactivity_layer !== l.id) { %>hidden<% } %>'><% _(l.fields||{}).each(function(desc, name) { %><span>{{{<%= name %>}}}</span><% }); %></pre>
+          <% }); %>
+        <% }); %>
+      </div>
+
+      <p class='quiet'><a target='_blank' href='http://mustache.github.io/'>Mustache</a> tags are replaced by your data. You can also use the full <a target='_blank' href='http://mustache.github.io/mustache.5.html'>Mustache template language</a> to customize tooltips.</p>
+    </div>
+  </form>
+  </div>
+
+</div>
+
+<%= this.modaluser({name:user.name}) %>
+<%= this.modalmessage() %>
+<%= this.modalmapbox() %>
+<%= this.modalbrowseropen({cwd:cwd, type:'style'}) %>
+<%= this.modalbrowseropen({cwd:cwd, type:'source'}) %>
+<%= style._tmp ? this.modalbrowsersave({cwd:cwd, type:'style'}) : '' %>
+
+<form id='addtab' class='modal center round pad2 col6 margin3 fill-light'>
+  <a class="pad1 quiet icon x submit pin-topright" href="#"></a>
+  <div class='clearfix'>
+    <span class='input-pill pill col8 margin2'>
+      <input class='col8' type='text' placeholder='filename' size='20' id='addtab-filename' required/><!--
+      --><input class='col4 round-right' type='submit' value='New tab'/>
+    </span>
+  </div>
+</form>
+
+<a href='#' id='mask' class='fill-darken2 animate'></a>
+
+</div>
+
+<script>
+var map = baselayer = tiles = grids = gridc = templateEditor = null;
+var templates = {};
+templates.sourceitem = <%= this.sourceitem.source %>;
+templates.sourcelayers = <%= this.sourcelayers.source %>;
+statHandler('drawtime')();
+
+var Tab = function(id, value) {
+  var tab = CodeMirror(function(cm) {
+    document.getElementById('code')
+      .insertBefore(cm, document.getElementById('interactivity'));
+  }, {
+    value: value,
+    lineNumbers: true,
+    paletteHints: true,
+    gutters: ['CodeMirror-linenumbers', 'errors'],
+    mode: {
+      name: 'carto',
+      reference: window.cartoRef
+    }
+  });
+  var completer = cartoCompletion(tab, window.cartoRef);
+
+  /*
+  @TODO
+  function updateSelectors(model) {
+      var ids = _.map(model.get('Layer').pluck('id'),
+          function(x) { return '#' + x; });
+      var classes = _(model.get('Layer').pluck('class')).chain().map(
+          function(c) {
+              if (c == undefined) return '';
+              var cs = c.split(' ');
+              if (cs[0] == '') return '';
+              return _.map(cs, function(x) { return '.' + x; });
+          }).flatten().compact().value();
+      cartoCompleter.ids(ids);
+      cartoCompleter.classes(classes);
+  }
+  this.model.bind('change', updateSelectors);
+  updateSelectors(this.model);
+  */
+
+  if (id === 'template') templateEditor = tab;
+  tab.on('keydown', completer.onKeyEvent);
+  tab.setOption('onHighlightComplete', _(completer.setTitles).throttle(100));
+  tab.getWrapperElement().id = 'code-' + id.replace(/[^\w+]/g,'_');
+  return tab;
+};
+var code = _(<%=JSON.stringify(style.styles)%>).reduce(function(memo, value, k) {
+  memo[k] = Tab(k, value);
+  return memo;
+}, {});
+
+// Add in interactivity template.
+code['template'] = Tab('template', <%=JSON.stringify(style.template)%>);
+
+_(code).toArray().shift().getWrapperElement().className += ' active';
+
+var Style = Backbone.Model.extend({});
+Style.prototype.url = function() { return '/style.json?id=' + this.get('id'); };
+
+var Source = Backbone.Model.extend({});
+Source.prototype.url = function() { return '/source.json?id=' + this.get('id'); };
+
+var Editor = Backbone.View.extend({});
+Editor.prototype.events = {
+  'click .js-save': 'save',
+  'click .js-recache': 'recache',
+  'submit #settings': 'save',
+  'submit #addtab': 'addtab',
+  'submit #addmapbox': 'addmapbox',
+  'submit #user': 'user',
+  'submit #bookmark': 'addbookmark',
+  'submit #search': 'search',
+  'click #tabs .js-deltab': 'deltab',
+  'click #tabs .js-tab': 'tabbed',
+  'click #docs .js-docs-nav': 'scrollto',
+  'click #docs .js-tab': 'tabbed',
+  'click #settings .js-tab': 'tabbed',
+  'click #layers .js-tab': 'tabbed',
+  'click #data .js-adddata': 'adddata',
+  'click #settings .js-ref-delete': 'delstyle',
+  'click #zoom-in': 'zoomin',
+  'click #zoom-out': 'zoomout',
+  'click #bookmark .bookmark-name': 'gotoBookmark',
+  'click #bookmark .js-del-bookmark': 'removebookmark',
+  'click .bookmark-n': 'focusBookmark',
+  'click #baselayer': 'toggleBaselayer',
+  'click .js-info': 'toggleInfo',
+  'click .js-expandall': 'expandall',
+  'click .search-result': 'selectSearch',
+  'click .search-n': 'focusSearch',
+  'change .js-layer-options': 'populateInteractiveVals',
+  'keydown': 'keys'
+};
+
+Editor.prototype.keys = function(ev) {
+  // Escape. Collapses windows, dialogs, modals, etc.
+  if (ev.which === 27) {
+    window.location.href = '#';
+  }
+  if ((ev.which === 38 || ev.which == 40) && window.location.hash == '#search') {
+    // up and down on search results
+    ev.preventDefault();
+    this.navSearch(ev, (ev.which === 38 ? 1 : -1));
+    return;
+  }
+  if ((!ev.ctrlKey && !ev.metaKey) || ev.shiftKey) return;
+  var which = ev.which;
+  switch (true) {
+  case (which === 83): // s
+    this.save();
+    break;
+  case (which === 187): // +
+    map.zoomBy(1);
+    break;
+  case (which === 189): // -
+    map.zoomBy(-1);
+    break;
+  case (which === 72): // h for help
+    ev.preventDefault();
+    this.togglePane('docs');
+    break;
+  case (which === 190): // . for fullscreen
+    ev.preventDefault();
+    this.togglePane('full');
+    break;
+  case (which === 68): // d for layers/data
+    ev.preventDefault();
+    this.togglePane('layers');
+    break;
+  case (which === 191): // / for settings
+    ev.preventDefault();
+    this.togglePane('settings');
+    break;
+  case (which === 66): // b for bookmarks
+    ev.preventDefault();
+    this.togglePane('bookmark');
+    break;
+  case ((which > 48 && which < 58) && ev.altKey): // 1-9 + alt
+    var tab = $('#tabs a.tab')[which-48];
+    if (tab) tab.click();
+    break;
+  default:
+    return true;
+  }
+  return false;
+};
+Editor.prototype.user = function() {
+  window.location.href = window.location.origin + '/unauthorize';
+  return false;
+};
+Editor.prototype.zoomin = function(out) {
+  map.setZoom(map.getZoom()+1);
+  return false;
+};
+Editor.prototype.zoomout = function() {
+  map.setZoom(map.getZoom()-1);
+  return false;
+};
+Editor.prototype.scrollto = function(ev) {
+    id = $(ev.currentTarget).attr('href').split('#').pop();
+    document.getElementById(id).scrollIntoView();
+    return false;
+};
+Editor.prototype.togglePane = function(name) {
+  var loc = location.href;
+  if (loc.indexOf('#'+name) === -1) {
+    location.href = loc.substring(0, loc.indexOf('#'))+'#'+name;
+  } else {
+    location.href = loc.replace('#'+name, '#');
+  }
+};
+Editor.prototype.toggleInfo = function(ev) {
+  var $el = $(ev.currentTarget);
+  if ($el.is('.fill-darken2')) {
+    $el.removeClass('fill-darken2 dark').addClass('quiet');
+    $($el.attr('href')).addClass('hidden');
+  } else {
+    $el.addClass('fill-darken2 dark').removeClass('quiet');
+    $($el.attr('href')).removeClass('hidden');
+  }
+  return false;
+};
+Editor.prototype.expandall = function(ev) {
+  button = $(ev.currentTarget);
+
+  if ( button.hasClass('expanded') ) {
+    $('.carto-ref').removeClass('active');
+    button.removeClass('expanded')
+  } else {
+    $('.carto-ref').addClass('active');
+    button.addClass('expanded');
+  }
+  return false;
+};
+Editor.prototype.populateInteractiveVals = function(ev) {
+  var layerName = $(ev.currentTarget).val();
+  $('.js-layer-option[rel=' + layerName + ']')
+    .removeClass('hidden')
+    .siblings('.js-layer-option')
+    .addClass('hidden');
+};
+Editor.prototype.messageclear = function() {
+  messageClear();
+  _(code).each(function(cm) {
+      _(cm._cartoErrors||[]).each(function() {
+        cm.clearGutter('errors');
+      });
+    delete cm._cartoErrors;
+  });
+};
+
+Editor.prototype.messagemodal = messageModal;
+Editor.prototype.delstyle = delStyle;
+Editor.prototype.tabbed = tabbedHandler;
+Editor.prototype.addmapbox = addMapBox;
+
+Editor.prototype.appendBookmark = function(name) {
+  $('<li class="keyline-top contain"><a href="#" class="icon marker quiet pad0 col12 small truncate bookmark-name">'+name+'</a><a href="#" class="icon keyline-left trash js-del-bookmark quiet pin-topright pad0"></a></li>').appendTo('#bookmark-list');
+};
+Editor.prototype.gotoBookmark = function(ev) {
+  var target = $(ev.currentTarget),
+      coords = this.bookmarks[target.text()];
+  map.setView([coords[0], coords[1]], coords[2]);
+  return false;
+};
+Editor.prototype.removebookmark = function(ev) {
+  ev.preventDefault();
+  var target = $(ev.currentTarget).prev('a'),
+      name = target.text();
+  target.parent('li').remove();
+  if (this.bookmarks[name]) delete this.bookmarks[name];
+  localStorage.setItem(this.model.get('id') + '.bookmarks', JSON.stringify(this.bookmarks));
+  return false;
+};
+Editor.prototype.addbookmark = function(ev) {
+  ev.preventDefault();
+  var coords = map.getCenter(),
+      zoom = map.getZoom(),
+      field = $('#addbookmark'),
+      fieldVal = field.val(),
+      value = [coords.lat, coords.lng, zoom],
+      name = fieldVal ? fieldVal : value;
+  if (this.bookmarks[name]) return false;
+  this.bookmarks[name] = value;
+  localStorage.setItem(this.model.get('id') + '.bookmarks', JSON.stringify(this.bookmarks));
+  field.val('');
+  this.appendBookmark(name);
+  return false;
+};
+Editor.prototype.focusBookmark = function(ev) {
+  $('#addbookmark').focus();
+  return;
+};
+Editor.prototype.toggleBaselayer = function(ev) {
+  $(ev.currentTarget).toggleClass('active dark fill-dark fill-white quiet');
+  this.refresh();
+  return false;
+};
+Editor.prototype.search = function(ev) {
+  ev.preventDefault();
+  var query = $('#search input').get(0).value;
+  // This query is empty or only whitespace.
+  if (/^\s*$/.test(query)) return null;
+
+  // This query is too short. Wait for more input chars.
+  if (query.length < 3) return;
+
+  // The query matches what is currently displayed
+  if ($('#search input').val() == $('#dosearch').data('query')) return;
+
+  var $results = $('#search-results');
+  $results.html('');
+
+  var latlon = (function(q) {
+      var parts = sexagesimal.pair(q);
+      if (parts) return { lat: parts[0], lon: parts[1] };
+  })(query);
+
+  if (latlon) {
+    // just go there, no search
+    map.setView([latlon.lat, latlon.lon]);
+    return false;
+  }
+
+  $.ajax('/geocode?search=' + query).done(function(data) {
+    var results = (data && data.results) ? data.results : [];
+    if (!results.length) {
+      $results.html('<li class="keyline-top contain pad0 col12 small">No results</li>');
+    }
+    $('#dosearch').data('query', query);
+    results.forEach(function(result, idx) {
+      var coords = result[0].lat + ',' + result[0].lon;
+      var place = _(result.slice(1)).chain().filter(function(v) { return v.type !== 'zipcode'; }).pluck('name').value().join(', ');
+      $('<li class="keyline-top contain"><a href="#" class="icon marker quiet pad0 col12 small search-result truncate '+(!idx ? 'active fill-white': '')+'" data-coords="'+coords+'" data-type="'+result[0].type+'" data-bounds="'+(result[0].bounds||false)+'" data-idx="'+idx+'"><strong>'+result[0].name+'</strong><span class="small pad1x">'+place+'</span></a></li>').appendTo($results);
+      selectSearch(false, $('#search-results [data-idx="0"]'));
+    });
+  });
+  return false;
+};
+Editor.prototype.selectSearch = selectSearch = function(ev, selection) {
+  var data;
+  if (ev) {
+    ev.preventDefault();
+    selection = ev.currentTarget;
+    data = ev.currentTarget.dataset;
+  } else {
+    data = selection[0].dataset;
+  }
+  $('#search-results a.active').removeClass('active fill-white');
+  $(selection).addClass('active fill-white');
+  if (data.bounds !== 'false') {
+    var bounds = data.bounds.split(',');
+    map.fitBounds([[bounds[1],bounds[0]], [bounds[3],bounds[2]]]);
+  } else {
+    var coords = data.coords.split(',');
+    if (data.type === 'address') {
+      map.setView(coords, Math.max(16, map.getZoom()));
+    } else if (data.type === 'street') {
+      map.setView(coords, Math.max(15, map.getZoom()));
+    } else {
+      map.setView(coords);
+    }
+  }
+  return false;
+};
+Editor.prototype.navSearch = function(ev, dir) {
+  var results = $('#search-results li');
+  var active = results.find('.active')[0].dataset;
+  var wanted = 0;
+  if (dir === 1) {
+    if (+active.idx - 1 < 0){
+      wanted = results.length - 1;
+    } else {
+      wanted = +active.idx - 1;
+    }
+  } else {
+    if (+active.idx + 1 > results.length - 1) {
+      wanted = 0;
+    } else {
+      wanted = +active.idx + 1;
+    }
+  }
+  this.selectSearch(false, $('#search-results [data-idx="'+wanted+'"]'));
+  return false;
+};
+Editor.prototype.focusSearch = function(ev) {
+  $('#dosearch').focus();
+  return;
+};
+Editor.prototype.adddata = function(ev) {
+  var target = $(ev.currentTarget);
+  if (target.is('.active')) return false;
+  var id = target.attr('href').split('#source-').pop();
+  (new Source({id:id})).fetch({
+    success: _(function(model, resp) {
+      $('#data a.active').removeClass('js-recache active');
+      $('#layers .js-menu-content').html(templates.sourcelayers(resp));
+      target.addClass('js-recache active');
+    }).bind(this),
+    error: _(this.error).bind(this)
+  });
+
+  return false;
+};
+Editor.prototype.addtab = function(ev) {
+  var field = $('#addtab-filename');
+  var filename = field.val().split('.')[0] + '.mss';
+  if (!code[filename]) {
+    $("<a rel='"+filename+"' href='#code-"+filename.replace(/[^\w+]/g,'_')+"' class='strong quiet tab js-tab round pad0y pad1x truncate contain'>"+filename.replace(/.mss/,'')+" <span class='icon keyline-left trash js-deltab pin-right round-right pad0y'></span></a>").insertAfter('nav#tabs > a:last-of-type');
+    code[filename] = Tab(filename, '');
+  }
+  field.val('');
+  window.location.hash = '#';
+  return false;
+};
+Editor.prototype.deltab = function(ev) {
+  var styles = this.model.get('styles');
+  var parent = $(ev.currentTarget).parent();
+  var target = parent.attr('rel');
+  if (!styles[target]) {
+    $(code[target].getWrapperElement()).remove();
+    parent.remove();
+  } else if (confirm('Remove stylesheet "' + target + '"?')) {
+    $(code[target].getWrapperElement()).remove();
+    parent.remove();
+    delete styles[target];
+    delete code[target];
+    this.model.set({styles:styles});
+  }
+
+  // Set first tab to active.
+  var tabs = $('.js-tab', '#tabs');
+  if (parent.is('.active') && tabs.size())
+    this.tabbed({ currentTarget:tabs.get(tabs.length - 1) });
+
+  return false;
+};
+Editor.prototype.recache = function(ev) {
+  this.model.set({_recache:true});
+  this.save(ev);
+  return false;
+};
+Editor.prototype.save = function(ev, options) {
+  var editor = this;
+  // Set map in loading state.
+  $('#full').addClass('loading');
+
+  var attr = {};
+  // Grab settings form values.
+  _($('#settings').serializeArray()).reduce(function(memo, field) {
+    if (field.name === 'minzoom' || field.name === 'maxzoom' || field.name === 'scale') {
+      memo[field.name] = parseInt(field.value,10);
+    } else if (field.name === 'baselayer') {
+      if (field.value) {
+        editor.model.get('_prefs').baselayer = field.value;
+        $('#baselayer').show();
+      } else {
+        editor.model.get('_prefs').baselayer = '';
+        $('#baselayer').hide();
+      }
+    } else if (field.name && field.value) {
+      memo[field.name] = field.value;
+    }
+    return memo;
+  }, attr);
+  // Grab interactivity form values.
+  _($('#interactivity').serializeArray()).reduce(function(memo, field) {
+    memo[field.name] = field.value;
+    return memo;
+  }, attr);
+  // Grab styles, sources.
+  attr.styles = _(code).reduce(function(memo, cm, k) {
+    if (k !== 'template') memo[k] = cm.getValue();
+    return memo;
+  }, {});
+  attr.source = $('#layers .js-source').map(function() {
+    return $(this).attr('id').split('source-').pop();
+  }).get().shift();
+  attr.template = code.template ? code.template.getValue() : '';
+
+  if (this.model.get('_prefs').saveCenter) {
+    var lon = map.getCenter().lng % 360;
+    lon += (lon < -180) ? 360 : (lon > 180) ? -360 : 0;
+    attr.center = [lon , map.getCenter().lat, map.getZoom() ];
+  }
+
+  options = options || {
+    success:_(this.refresh).bind(this),
+    error: _(this.error).bind(this)
+  };
+  this.model.save(attr, options);
+
+  return ev && !!$(ev.currentTarget).is('a');
+};
+Editor.prototype.error = function(model, resp) {
+  this.messageclear();
+
+  if (!resp.responseText)
+    return this.messagemodal('Could not save style "' + model.id + '"');
+
+    // Assume carto.js specific error array format response.
+  _(JSON.parse(resp.responseText).message.toString().split('\n')).chain()
+    .compact()
+    .map(function(e) { return e.match(/^(Error: )?([\w.]+):([\d]+):([\d]+) (.*)$/) || e; })
+    .each(_(function(e) {
+      if (_(e).isArray()) {
+        var id = e[2];
+        var ln = parseInt(e[3]) - 1;
+        code[id]._cartoErrors = code[id]._cartoErrors || [];
+        code[id]._cartoErrors.push(ln);
+        code[id].setGutterMarker(ln, 'errors', this.cartoError(ln, e));
+      } else {
+        return this.messagemodal(e);
+      }
+    }).bind(this));
+};
+
+Editor.prototype.cartoError = function(ln, e) {
+    var error = document.createElement('div');
+    error.className = 'error';
+
+    var link = document.createElement('a');
+    link.id = 'error-' + ln;
+    link.href = '#error-' + ln;
+
+    var message = document.createElement('small');
+    message.className = 'js-message message round-right pad0y pad1x z10';
+    message.innerHTML = e[5];
+
+    var close = document.createElement('a');
+    close.className = 'icon x pin-right quiet pad0';
+    close.href = '#';
+
+    message.appendChild(close);
+    error.appendChild(link);
+    error.appendChild(message);
+    return error;
+};
+
+Editor.prototype.refresh = function(ev) {
+  this.messageclear();
+
+  if (!map) {
+    map = L.mapbox.map('map');
+    map.setView([this.model.get('center')[1], this.model.get('center')[0]], this.model.get('center')[2]);
+    map.on('zoomend', function() { $('#zoomedto').attr('class', 'contain z' + (map.getZoom()|0)); });
+  }
+  map.options.minZoom = this.model.get('minzoom');
+  map.options.maxZoom = this.model.get('maxzoom');
+
+  // Refresh map baselayer.
+  if (baselayer) map.removeLayer(baselayer);
+  baselayer =  baselayer && this.model.get('_prefs').baselayer && this.model.get('_prefs').baselayer === baselayer._tilejson.id ? baselayer : this.model.get('_prefs').baselayer ? L.mapbox.tileLayer(this.model.get('_prefs').baselayer) : false;
+  if (baselayer && $('#baselayer').is('.active')) baselayer.addTo(map);
+
+  // Refresh map layer.
+  if (tiles) map.removeLayer(tiles);
+  tiles = L.mapbox.tileLayer({
+    tiles: ['/style/{z}/{x}/{y}.png?id=<%=style.id%>&mtime=' + this.model.get('mtime') ],
+    minzoom: this.model.get('minzoom'),
+    maxzoom: this.model.get('maxzoom')
+  })
+  .on('tileload', statHandler('drawtime'))
+  .on('load', errorHandler)
+  .addTo(map);
+
+  // Refresh gridcontrol template.
+  if (grids) map.removeLayer(grids);
+  if (gridc) map.removeControl(gridc);
+  if (this.model.get('template') && this.model.get('interactivity_layer')) {
+    grids = L.mapbox.gridLayer({
+      grids: ['/style/{z}/{x}/{y}.grid.json?id=<%=style.id%>&mtime=' + this.model.get('mtime') ],
+      minzoom: this.model.get('minzoom'),
+      maxzoom: 22
+    });
+    gridc = L.mapbox.gridControl(grids, {
+      follow: true,
+      template: this.model.get('template')
+    });
+    map.addLayer(grids);
+    map.addControl(gridc);
+  }
+
+  // Refresh map title.tm.db.rm('user');
+  $('title').text(this.model.get('name'));
+  $('.js-name').text(this.model.get('name') || 'Untitled');
+  $('.proj-active .style-name').text(this.model.get('name') || 'Untitled');
+
+  // Set canvas background color.
+  if (this.model.get('background'))
+    $('#map').css({'background-color':this.model.get('background')});
+
+  // Get existing bookmarks
+  if (!this.bookmarks) {
+    this.bookmarks = localStorage.getItem(this.model.get('id') + '.bookmarks') ?
+      JSON.parse(localStorage.getItem(this.model.get('id') + '.bookmarks')) : {};
+    for (var b in this.bookmarks) {
+      this.appendBookmark(b);
+    }
+  }
+
+  return false;
+};
+
+var editor = new Editor({
+  el: document.body,
+  model: new Style(<%= JSON.stringify(style) %>)
+});
+editor.refresh();
+
+// Syntax highlighting for carto ref.
+$('pre.carto-snippet').each(function(i, elem) {
+  var text = $(elem).text();
+  $(elem).empty();
+  CodeMirror.runMode(text, {name:'carto',reference:window.cartoRef}, $(elem).get(0));
+});
+</script>
+
+<% if (test) { %>
+  <link href='/app/test/mocha.css' rel='stylesheet' />
+  <style>body{padding:0;line-height:1;}/*Bad Mocha*/</style>
+  <script src='/app/test/chai.js'></script>
+  <script src='/app/test/mocha.js'></script>
+  <div id='mocha' class='modal target round pad2 col6 scroll-styled row8 margin3 fill-light'></div>
+  <a href='#' id='mask' class='fill-darken2 animate'></a>
+  <script src='/app/test/app.test.js'></script>
+<% } %>
+
+</body>
+</html>

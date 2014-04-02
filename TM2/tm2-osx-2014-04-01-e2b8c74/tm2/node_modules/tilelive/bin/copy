@@ -1,0 +1,140 @@
+#!/usr/bin/env node
+var fs = require('fs');
+var url = require('url');
+var util = require('util');
+var path = require('path');
+var Scheme = require('../lib/scheme');
+var CopyTask = require('../lib/copytask');
+var optimist = require('optimist');
+var tilelive = require('../');
+
+var argv = optimist
+    .options('job', {
+        'alias': 'j',
+        'describe': 'Job file (will be resumed if it exists)'
+    })
+    .options('scheme', {
+        'alias': 's',
+        'default': 'scanline',
+        'describe': 'One of [file, scanline, pyramid]'
+    })
+    .options('list', {
+        'alias': 'l',
+        'describe': 'If scheme=file, the coordinates file'
+    })
+    .options('concurrency', {
+        'alias': 'c',
+        'default': 8,
+        'describe': 'Number of parallel copy operations'
+    })
+    .options('bbox', {
+        'describe': 'WGS84 bounding box',
+        'default': [-180, -85.0511, 180, 85.0511]
+    })
+    .options('minzoom', {
+        'describe': 'Zoom level from which to start copying (inclusive)',
+        'default': 0
+    })
+    .options('maxzoom', {
+        'describe': 'Zoom level until which to copy (inclusive)',
+        'default': 8
+    })
+    .options('metatile', {
+        'describe': 'Metatile side length in number of tiles',
+        'default': 1
+    })
+    .argv;
+
+if (argv.job) {
+    try {
+        var job = JSON.parse(fs.readFileSync(path.resolve(argv.job), 'utf8'));
+    } catch(err) {
+        if (err.code !== 'EBADF' && err.code !== 'ENOENT') throw err;
+    }
+    console.warn('Continuing job ' + argv.job);
+    auto(job.from);
+    auto(job.to);
+    var scheme = Scheme.unserialize(job.scheme);
+    var task = new CopyTask(job.from, job.to, scheme, argv.job);
+} else {
+    optimist.demand(0).demand(1).argv;
+    if (argv.bbox && !Array.isArray(argv.bbox))
+        argv.bbox = argv.bbox.split(',').map(parseFloat);
+    var from = tilelive.auto(argv._[0]);
+    var to = tilelive.auto(argv._[1]);
+    var scheme = Scheme.create(argv.scheme, argv);
+    var task = new CopyTask(from, to, scheme, argv.job);
+}
+
+task.on('progress', report);
+task.on('finished', function() {
+    console.log('\nFinished.');
+    process.exit(0);
+});
+task.start(function(err) {
+    if (err) throw err;
+    task.source.getInfo(function(err, info) {
+        if (err) throw err;
+        task.sink.putInfo(info, function(err) {
+            if (err) throw err;
+        });
+    });
+});
+
+function report(stats) {
+    var progress = stats.processed / stats.total;
+    var remaining = timeRemaining(progress, task.started);
+    util.print(util.format('\r\033[K[%s] %s%% %s/%s @ %s/s | ✓ %s ■ %s □ %s ✕ %s | %s left',
+        pad(formatDuration(stats.date - task.started), 4, true),
+        pad(((progress || 0) * 100).toFixed(4), 8, true),
+        pad(formatNumber(stats.processed),6,true),
+        pad(formatNumber(stats.total),6,true),
+        pad(formatNumber(stats.speed),4,true),
+        formatNumber(stats.unique),
+        formatNumber(stats.duplicate),
+        formatNumber(stats.skipped),
+        formatNumber(stats.failed),
+        formatDuration(remaining)
+    ));
+}
+
+function pad(str, len, r) {
+    while (str.length < len) str = r ? ' ' + str : str + ' ';
+    return str;
+}
+
+function formatDuration(duration) {
+    duration = duration / 1000 | 0;
+    var seconds = duration % 60;
+    duration -= seconds;
+    var minutes = (duration % 3600) / 60;
+    duration -= minutes * 60;
+    var hours = (duration % 86400) / 3600;
+    duration -= hours * 3600;
+    var days = duration / 86400;
+
+    return (days > 0 ? days + 'd ' : '') +
+           (hours > 0 || days > 0 ? hours + 'h ' : '') +
+           (minutes > 0 || hours > 0 || days > 0 ? minutes + 'm ' : '') +
+           seconds + 's';
+}
+
+function formatNumber(num) {
+    num = num || 0;
+    if (num >= 1e6) {
+        return (num / 1e6).toFixed(2) + 'm';
+    } else if (num >= 1e3) {
+        return (num / 1e3).toFixed(1) + 'k';
+    } else {
+        return num.toFixed(0);
+    }
+    return num.join('.');
+}
+
+function timeRemaining(progress, started) {
+    return Math.floor(
+        (Date.now() - started) * (1 / progress) -
+        (Date.now() - started)
+    );
+}
+

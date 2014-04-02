@@ -1,0 +1,45 @@
+<div id='<%= obj.id %>' class='contain js-source source'>
+
+<div class='pin-topright pad0'>
+<a class='button quiet short icon round refresh js-recache' href='#recache'></a>
+</div>
+
+<a href='#data' class='small block keyline-bottom pad1 clearfix'>
+  <strong>
+  <%= obj.name || 'Untitled' %>
+  <% if (obj.tiles) { %>
+  <span name='remote' class='inline quiet pad0x icon cloud'>Remote</span>
+  <% } else { %>
+  <span name='local' class='inline quiet pad0x icon harddrive'>Local</span>
+  <% } %>
+  </strong>
+</a>
+
+<% _(obj.vector_layers).chain().clone().reverse().each(function(l) { %>
+<div class='small layer col12 contain' id='layers-<%=l.id%>'>
+  <a href='#layers-<%=l.id%>' class='pin-left pin-right js-tab'></a>
+  <div class='pad1x pad0y keyline-bottom quiet <%=l.geometry + 'icon'||''%>'><%=l.id%></div>
+
+  <div class='center pin-right'>
+    <span class='inline zooms pad0 micro'>
+      <% if (!l.maxzoom) { %>
+      z<%= l.minzoom||0 %>+
+      <% } else { %>
+      z<%= l.minzoom||0 %>-<%= l.maxzoom||22 %>
+      <% } %>
+    </span>
+  </div>
+  <div class='description'>
+    <div class='truncate keyline-bottom col12 pad1'><%=l.description||'No description.'%></div>
+    <div class='pad1y'>
+      <% _(l.fields||{}).each(function(desc,name) { %>
+      <div class='field pad1x pad0y clearfix'>
+        <span class='field-key break-word col4'><%=name%> </span>
+        <span class='quiet col8 pad1x'><%=desc||'No description.'%></span>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+</div>
+<% }); %>
+</div>

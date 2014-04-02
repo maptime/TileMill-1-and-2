@@ -1,0 +1,25 @@
+<%
+// Required vars
+// - id, the form ID
+// - cwd, absolute path from which to begin browsing
+// - placeholder, optional input field placeholder
+// - pattern, optional input field pattern
+// - label, optional defaults to 'Save'
+%>
+
+<form id='<%=obj.id%>' class='modal round browser col6 fill-light'>
+  <a class='pad1 quiet icon x submit pin-topright' href='#'></a>
+  <div class='cwd row1 truncate keyline-bottom z1'>
+    <a href='#<%= obj.cwd.split('/').slice(0,-1).join('/') %>' class='inline pad1 quiet icon prev unround'></a><!--
+    --><strong><%=cwd%></strong>
+  </div>
+  <div class='list scroll-styled fill-darken0 row6'></div>
+
+  <div class='clearfix pad1'>
+    <div class='col6 margin3 pill clearfix input-pill'><!--
+      --><input type='hidden' name='cwd' value='<%=obj.cwd%>' /><!--
+      --><input class='col8' title='<%=obj.hint||obj.placeholder||''%>' type='text' placeholder='<%=obj.placeholder||''%>' size='20' name='basename' pattern='<%=obj.pattern||''%>'/><!--
+      --><input class='col4' type='submit' value='<%=obj.label||'Save'%>'/>
+    </div>
+  </div>
+</form>

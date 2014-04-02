@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset='UTF-8'/>
+  <link href='/ext/base/base.css' rel='stylesheet' />
+  <link href='/app/app.css' rel='stylesheet' />
+  <title>TM2 Authorization</title>
+</head>
+
+<body id='view' class='fill-denim pad4y'>
+  <div class='center col6 margin3 dark'>
+    <h3 class='icon tilemill pad4y'>TileMill 2</h3>
+    <div class='pad4 fill-darken0 clearfix'>
+      <% if (error) { %>
+        <span class='icon quiet big alert space-bottom1'></span>
+        <h2 class=''><%= error %></h2>
+        <p>TM2 requires Mapbox authentication to continue.</p>
+      <% } else { %>
+        <h1 class='space-bottom2'>Connect your Mapbox account to get&nbsp;started.</h1>
+      <% } %>
+      <a href='/oauth/mapbox' class='button icon lock col8 margin2'>Connect</a>
+    </div>
+  </div>
+</body>
+
+</html>

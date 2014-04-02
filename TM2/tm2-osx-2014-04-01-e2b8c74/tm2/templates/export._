@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset='UTF-8'/>
+  <link href='/ext/base/base.css' rel='stylesheet' />
+  <link href='/app/app.css' rel='stylesheet' />
+  <link href='/app/export.css' rel='stylesheet' />
+  <title><%= source.name || 'Untitled' %></title>
+</head>
+
+<body id='view' class='dark <%= job.stats ? 'task' : 'stat' %>'>
+
+<div class='modal fill-blue center target round pad2 col6 margin3'>
+  <h2><%= source.name || 'Untitled' %></h2>
+  <a href='/source?id=<%=source.id%>' class='icon pad1 quiet x dot stat pin-topright'></a>
+
+  <% var pct = job.stats ? (100 * job.stats.processed / job.stats.total).toFixed(1) : '100.0'; %>
+  <small class='quiet'>
+    <span class='stat'><span class='size'><%= job.stat ? this.exportsize(job.stat.size) : 0 %></span> &mdash;</span>
+    <span class='task'><span class='speed'><%= job.stats ? job.stats.speed : 0 %></span> tiles/sec &mdash;</span>
+    z<%= source.minzoom %>-<%= source.maxzoom %>
+  </small>
+
+  <div class='pad2y space-bottom2'>
+    <h1 class='percent'><%= pct %></h1>
+    <div class='pad0 fill-darken1 round col8 margin2 progress'>
+      <div class='pad0 fill-white fill' style='width:<%= pct %>%'></div>
+    </div>
+  </div>
+
+    <a href='/source?id=<%=source.id%>' class='button big submit icon x task js-cancel'> Cancel export</a>
+    <a href='/source.mbtiles?id=<%=source.id%>' class='button quiet big submit icon folder stat'> Vector MBTiles</a>
+  <div class='stat col12 pad1'>
+    <a href='#recache' class='js-recache quiet strong small icon refresh'> Redo export</a>
+  </div>
+</div>
+
+<script src='/ext/underscore-min.js'></script>
+<script src='/ext/jquery-2.0.3.min.js'></script>
+<script src='/ext/backbone.js'></script>
+<script src='/app/lib.js'></script>
+<script>
+var templates = {};
+templates.exportsize = <%= this.exportsize.source %>;
+
+var Job = Backbone.Model.extend({});
+Job.prototype.url = function() { return '/mbtiles.json?id=<%=source.id%>'; };
+
+var Exporter = Backbone.View.extend({});
+Exporter.prototype.events = {
+  'click .js-cancel': 'cancel',
+  'click .js-recache': 'recache'
+};
+Exporter.prototype.poll = function() {
+  var model = this.model;
+  var view = this;
+  model.fetch({
+    success:function() {
+      if (!model.get('task')) {
+        view.refresh();
+      } else {
+        view.timeout = setTimeout(view.poll, 1000);
+      }
+    },
+    error:function() {}
+  });
+};
+Exporter.prototype.initialize = function() {
+  _(this).bindAll('poll', 'refresh');
+  this.model.on('change', this.refresh);
+  this.poll();
+};
+Exporter.prototype.refresh = function() {
+  if (!this.model.get('stats')) {
+    var pct = '100.0';
+    var spd = 0;
+    this.$('.size').text(templates.exportsize(this.model.get('stat').size));
+    $('body').removeClass('task').addClass('stat');
+  } else {
+    var pct = (100 * this.model.get('stats').processed / this.model.get('stats').total).toFixed(1);
+    var spd = this.model.get('stats').speed;
+    $('body').removeClass('stat').addClass('task');
+  }
+  var pctel = this.$('.percent');
+  var target = parseFloat(pct);
+  var tweenpct = function() {
+    var current = parseFloat(pctel.text());
+    if (target === 0) return pctel.text('0.0');
+    if (current >= target) return;
+    pctel.text((current + 0.1).toFixed(1));
+    setTimeout(tweenpct,50/(target-current)|0);
+  };
+  tweenpct();
+  this.$('.progress .fill').css({width:pct+'%'});
+  this.$('.speed').text(spd);
+};
+Exporter.prototype.recache = function() {
+  var view = this;
+  this.model.save({}, {
+    success: function() { view.poll() }
+  });
+  return false;
+};
+Exporter.prototype.cancel = function(ev) {
+  var href = $(ev.currentTarget).attr('href');
+  if (this.timeout) clearTimeout(this.timeout);
+  this.model.destroy({
+    success: function() { window.location.href = href }
+  });
+  return false;
+};
+
+var exporter = new Exporter({
+  el: document.body,
+  model: new Job(<%= JSON.stringify(job) %>)
+});
+</script>
+</body>
+
+</html>

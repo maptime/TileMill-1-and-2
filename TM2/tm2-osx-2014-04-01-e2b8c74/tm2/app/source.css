@@ -1,0 +1,67 @@
+.leaflet-popup .leaflet-popup-content { padding: 10px 10px 5px;}
+.leaflet-popup .leaflet-popup-content .xray-listing {
+  width:240px;
+  /* leaflet overrides */
+  font-size: 11px;
+  line-height: 20px;
+  font-family:'Open Sans', sans-serif;
+}
+
+.leaflet-popup-close-button { display: none;}
+
+.project-name {
+  max-width: 240px;
+  vertical-align: top;
+}
+
+#docs .keyline-bottom,
+#docs .keyline-top {
+  border-top-color: rgba(0,0,0,.2);
+  border-bottom-color: rgba(0,0,0,.2);
+}
+
+.source-menu { box-shadow: rgba(0,0,0,0.1) -2px 0px 0px; }
+
+.leaflet-popup .xray,
+.editor .field-key {
+  padding:0 5px;
+  border-radius: 3px;
+  background: rgba(241, 240, 117, .75);
+  color: rgba(0,0,0,.75);
+  vertical-align: top;
+  font-family:'Open Sans', sans-serif;
+  }
+
+/* Conf pane */
+.editor > div.conf { display:block; }
+.sql .editor > div.conf,
+.fields .editor > div.conf { display:none; }
+
+/* Fields pane */
+.editor > div.fields { display:none; }
+.fields .editor > div.fields { display:block; }
+
+/* SQL pane */
+.editor > div.sql {
+  position:absolute;
+  top:60px; bottom:0px; width:100%;
+  display: block;
+  visibility: hidden;
+  }
+.editor .CodeMirror { top:60px; }
+
+.sql .editor > div.sql { visibility:visible; }
+.sql .editor .CodeMirror { visibility:visible; }
+
+/* XRay tools */
+.xrayswatch,
+.xrayinspector {
+  box-shadow:inset 0px 0px 0px 2px rgba(0,0,0,0.2);
+  cursor: pointer;
+  }
+.xrayswatch:not(.disabled)::before { background: none !important;}
+.xrayswatch.disabled { background-color:rgba(0,0,0,0.1) !important; }
+.xrayswatch.disabled::before { background-color:rgba(0,0,0,0.1) !important; }
+.xrayinspector::before { visibility:hidden; }
+.xrayinspector:hover::before { visibility:visible; }
+.xrayinspector.active::before { visibility:visible; }
